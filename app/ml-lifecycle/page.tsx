@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { 
   Lightbulb, 
@@ -218,9 +218,137 @@ const processPhases = [
   }
 ]
 
+const defaultSteps = [
+  { key: 'collected', label: 'Data Collection', enabled: true, params: {} as Record<string, any> },
+  { key: 'preprocessed', label: 'Preprocessing', enabled: true, params: {} as Record<string, any> },
+  { key: 'trained', label: 'Training', enabled: true, params: {} as Record<string, any> },
+  { key: 'evaluated', label: 'Evaluation', enabled: true, params: {} as Record<string, any> },
+]
+
+// Parameter presets for each step type
+const parameterPresets: Record<string, Record<string, Record<string, any>>> = {
+  collected: {
+    'Basic': { sampleSize: 3, format: 'csv' },
+    'Large Dataset': { sampleSize: 10, format: 'json', includeHeaders: false },
+    'Custom Source': { dataSource: 'custom-api', sampleSize: 5, format: 'json' }
+  },
+  preprocessed: {
+    'Standard': { method: 'upper', removeDuplicates: true },
+    'Aggressive': { method: 'normalize', removeDuplicates: true, handleMissing: 'drop' },
+    'Custom': { method: 'custom', customTransform: 'prefix' }
+  },
+  trained: {
+    'Quick': { modelType: 'random_forest', epochs: 50 },
+    'Thorough': { modelType: 'neural_network', epochs: 200, crossValidation: true },
+    'Production': { modelType: 'xgboost', validationSplit: 0.3, earlyStopping: true }
+  },
+  evaluated: {
+    'Basic': { metrics: ['accuracy'], generateReport: true },
+    'Comprehensive': { metrics: ['accuracy', 'precision', 'recall', 'f1'], comparisonBaseline: 0.85 },
+    'Production': { metrics: ['accuracy', 'precision', 'recall', 'f1', 'auc'], saveModel: true, exportResults: true }
+  }
+}
+
+// Workflow templates for common ML scenarios
+const workflowTemplates = {
+  'Quick Classification': {
+    description: 'Fast classification pipeline for prototyping',
+    steps: [
+      { key: 'collected', label: 'Data Collection', enabled: true, params: { sampleSize: 5, format: 'csv' } },
+      { key: 'preprocessed', label: 'Preprocessing', enabled: true, params: { method: 'upper', removeDuplicates: true } },
+      { key: 'trained', label: 'Training', enabled: true, params: { modelType: 'random_forest', epochs: 50 } },
+      { key: 'evaluated', label: 'Evaluation', enabled: true, params: { metrics: ['accuracy'], generateReport: true } }
+    ]
+  },
+  'Production ML Pipeline': {
+    description: 'Comprehensive pipeline for production deployment',
+    steps: [
+      { key: 'collected', label: 'Data Collection', enabled: true, params: { sampleSize: 10, format: 'json', includeHeaders: false } },
+      { key: 'preprocessed', label: 'Preprocessing', enabled: true, params: { method: 'normalize', removeDuplicates: true, handleMissing: 'drop' } },
+      { key: 'trained', label: 'Training', enabled: true, params: { modelType: 'xgboost', epochs: 200, crossValidation: true, earlyStopping: true } },
+      { key: 'evaluated', label: 'Evaluation', enabled: true, params: { metrics: ['accuracy', 'precision', 'recall', 'f1'], comparisonBaseline: 0.85, saveModel: true } }
+    ]
+  },
+  'Deep Learning Experiment': {
+    description: 'Neural network pipeline with advanced features',
+    steps: [
+      { key: 'collected', label: 'Data Collection', enabled: true, params: { sampleSize: 8, format: 'json' } },
+      { key: 'preprocessed', label: 'Preprocessing', enabled: true, params: { method: 'normalize', handleMissing: 'interpolate' } },
+      { key: 'trained', label: 'Training', enabled: true, params: { modelType: 'neural_network', epochs: 300, learningRate: 0.001, validationSplit: 0.3 } },
+      { key: 'evaluated', label: 'Evaluation', enabled: true, params: { metrics: ['accuracy', 'precision', 'recall', 'f1', 'auc'], generateReport: true, exportResults: true } }
+    ]
+  }
+}
+
+// External ML library integrations
+const mlLibraries = {
+  'scikit-learn': {
+    name: 'Scikit-learn',
+    description: 'Python ML library for traditional algorithms',
+    models: ['RandomForest', 'LinearRegression', 'SVM', 'KMeans'],
+    status: 'available'
+  },
+  'tensorflow': {
+    name: 'TensorFlow',
+    description: 'Deep learning framework by Google',
+    models: ['NeuralNetwork', 'CNN', 'RNN', 'Transformer'],
+    status: 'available'
+  },
+  'pytorch': {
+    name: 'PyTorch',
+    description: 'Deep learning framework by Facebook',
+    models: ['NeuralNetwork', 'CNN', 'RNN', 'Transformer'],
+    status: 'available'
+  },
+  'xgboost': {
+    name: 'XGBoost',
+    description: 'Gradient boosting library',
+    models: ['XGBClassifier', 'XGBRegressor'],
+    status: 'available'
+  }
+}
+
+// Parameter validation rules
+const validationRules: Record<string, Record<string, any>> = {
+  collected: {
+    sampleSize: { min: 1, max: 100, type: 'number' },
+    format: { type: 'enum', values: ['csv', 'json', 'xml'] },
+    dataSource: { type: 'string', required: false }
+  },
+  preprocessed: {
+    method: { type: 'enum', values: ['upper', 'lower', 'normalize', 'custom'] },
+    validationSplit: { min: 0.1, max: 0.5, type: 'number' },
+    customTransform: { type: 'string', required: false, dependsOn: 'method', dependsValue: 'custom' }
+  },
+  trained: {
+    modelType: { type: 'enum', values: ['random_forest', 'linear_regression', 'neural_network', 'xgboost'] },
+    epochs: { min: 1, max: 1000, type: 'number' },
+    learningRate: { min: 0.0001, max: 0.1, type: 'number' },
+    validationSplit: { min: 0.1, max: 0.5, type: 'number' }
+  },
+  evaluated: {
+    comparisonBaseline: { min: 0, max: 1, type: 'number' },
+    threshold: { min: 0, max: 1, type: 'number' }
+  }
+}
+
 export default function MLLifecycle() {
   const [selectedStep, setSelectedStep] = useState(lifecycleSteps[2])
   const [activeTab, setActiveTab] = useState('overview')
+  const [workflowResult, setWorkflowResult] = useState<Record<string, any> | null>(null)
+  const [loadingWorkflow, setLoadingWorkflow] = useState(false)
+  const [dataSource, setDataSource] = useState('')
+  const [steps, setSteps] = useState<typeof defaultSteps>(defaultSteps)
+  const [activeStepIdx, setActiveStepIdx] = useState(-1)
+  const [useSSE, setUseSSE] = useState(false)
+  const [liveResults, setLiveResults] = useState<Record<string, any>>({})
+  const [currentProgress, setCurrentProgress] = useState(0)
+  const [expandedStep, setExpandedStep] = useState<string | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('')
+  const [selectedLibrary, setSelectedLibrary] = useState<string>('')
+  const [validationErrors, setValidationErrors] = useState<Record<string, Record<string, string>>>({})
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [showLibraries, setShowLibraries] = useState(false)
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -232,6 +360,466 @@ export default function MLLifecycle() {
         return <Clock className="w-5 h-5 text-gray-400" />
       default:
         return <AlertCircle className="w-5 h-5 text-gray-400" />
+    }
+  }
+
+  // Drag and drop handlers
+  const onDragStart = (idx: number) => (e: React.DragEvent) => {
+    e.dataTransfer.setData('stepIdx', idx.toString())
+  }
+  const onDrop = (idx: number) => (e: React.DragEvent) => {
+    const fromIdx = parseInt(e.dataTransfer.getData('stepIdx'))
+    if (fromIdx === idx) return
+    const newSteps = [...steps]
+    const [moved] = newSteps.splice(fromIdx, 1)
+    newSteps.splice(idx, 0, moved)
+    setSteps(newSteps)
+  }
+  const onDragOver = (e: React.DragEvent) => e.preventDefault()
+
+  // Step config handlers
+  const toggleStep = (idx: number) => {
+    const newSteps = [...steps]
+    newSteps[idx].enabled = !newSteps[idx].enabled
+    setSteps(newSteps)
+  }
+  const updateStepParam = (idx: number, param: string, value: any) => {
+    const newSteps = [...steps]
+    newSteps[idx].params[param] = value
+    setSteps(newSteps)
+    
+    // Validate the parameter
+    const stepKey = newSteps[idx].key
+    const error = validateParameter(stepKey, param, value)
+    
+    setValidationErrors(prev => ({
+      ...prev,
+      [stepKey]: {
+        ...prev[stepKey],
+        [param]: error || ''
+      }
+    }))
+  }
+
+  const applyPreset = (stepKey: string, presetName: string) => {
+    const preset = parameterPresets[stepKey as keyof typeof parameterPresets]?.[presetName]
+    if (preset) {
+      const newSteps = [...steps]
+      const stepIndex = newSteps.findIndex(s => s.key === stepKey)
+      if (stepIndex !== -1) {
+        newSteps[stepIndex].params = { ...preset }
+        setSteps(newSteps)
+      }
+    }
+  }
+
+  // Parameter validation function
+  const validateParameter = (stepKey: string, paramKey: string, value: any): string | null => {
+    const rules = validationRules[stepKey]
+    if (!rules || !rules[paramKey]) return null
+    
+    const rule: any = rules[paramKey]
+    
+    if (rule.type === 'number') {
+      if (typeof value !== 'number') return `${paramKey} must be a number`
+      if (rule.min !== undefined && value < rule.min) return `${paramKey} must be at least ${rule.min}`
+      if (rule.max !== undefined && value > rule.max) return `${paramKey} must be at most ${rule.max}`
+    }
+    
+    if (rule.type === 'enum') {
+      if (!rule.values.includes(value)) return `${paramKey} must be one of: ${rule.values.join(', ')}`
+    }
+    
+    if (rule.type === 'string' && rule.required && !value) {
+      return `${paramKey} is required`
+    }
+    
+    if (rule.dependsOn) {
+      const dependentValue = steps.find(s => s.key === stepKey)?.params[rule.dependsOn]
+      if (dependentValue === rule.dependsValue && !value) {
+        return `${paramKey} is required when ${rule.dependsOn} is ${rule.dependsValue}`
+      }
+    }
+    
+    return null
+  }
+
+  // Apply workflow template
+  const applyTemplate = (templateName: string) => {
+    const template = workflowTemplates[templateName as keyof typeof workflowTemplates]
+    if (template) {
+      setSteps(template.steps as typeof defaultSteps)
+      setSelectedTemplate(templateName)
+      setValidationErrors({})
+    }
+  }
+
+  // Save current workflow as template
+  const saveAsTemplate = () => {
+    const templateName = prompt('Enter template name:')
+    if (templateName) {
+      // In a real app, you'd save this to a database or file
+      console.log('Saving template:', templateName, steps)
+      alert(`Template "${templateName}" saved!`)
+    }
+  }
+
+  // Check if workflow is valid
+  const isWorkflowValid = () => {
+    const hasErrors = Object.values(validationErrors).some(stepErrors => 
+      Object.values(stepErrors).some(error => error !== '')
+    )
+    const hasEnabledSteps = steps.some(step => step.enabled)
+    return !hasErrors && hasEnabledSteps
+  }
+
+  const renderParameterForm = (step: typeof defaultSteps[0], idx: number) => {
+    const { key, params } = step
+    
+    switch (key) {
+      case 'collected':
+        return (
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data Source</label>
+                <input
+                  type="text"
+                  value={params.dataSource || ''}
+                  onChange={e => updateStepParam(idx, 'dataSource', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  placeholder="e.g., api-endpoint, file-path"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sample Size</label>
+                <input
+                  type="number"
+                  value={params.sampleSize || 3}
+                  onChange={e => updateStepParam(idx, 'sampleSize', parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  min="1"
+                  max="100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Format</label>
+                <select
+                  value={params.format || 'csv'}
+                  onChange={e => updateStepParam(idx, 'format', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="csv">CSV</option>
+                  <option value="json">JSON</option>
+                  <option value="xml">XML</option>
+                </select>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={`includeHeaders-${idx}`}
+                  checked={params.includeHeaders !== false}
+                  onChange={e => updateStepParam(idx, 'includeHeaders', e.target.checked)}
+                  className="mr-2"
+                />
+                <label htmlFor={`includeHeaders-${idx}`} className="text-sm text-gray-700">Include Headers</label>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {Object.keys(parameterPresets.collected).map(preset => (
+                <button
+                  key={preset}
+                  onClick={() => applyPreset(key, preset)}
+                  className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      
+      case 'preprocessed':
+        return (
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Method</label>
+                <select
+                  value={params.method || 'upper'}
+                  onChange={e => updateStepParam(idx, 'method', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="upper">Uppercase</option>
+                  <option value="lower">Lowercase</option>
+                  <option value="normalize">Normalize</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              {params.method === 'custom' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Custom Transform</label>
+                  <input
+                    type="text"
+                    value={params.customTransform || ''}
+                    onChange={e => updateStepParam(idx, 'customTransform', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md text-sm"
+                    placeholder="e.g., prefix, suffix"
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Handle Missing</label>
+                <select
+                  value={params.handleMissing || 'drop'}
+                  onChange={e => updateStepParam(idx, 'handleMissing', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="drop">Drop</option>
+                  <option value="fill">Fill</option>
+                  <option value="interpolate">Interpolate</option>
+                </select>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={`removeDuplicates-${idx}`}
+                  checked={params.removeDuplicates || false}
+                  onChange={e => updateStepParam(idx, 'removeDuplicates', e.target.checked)}
+                  className="mr-2"
+                />
+                <label htmlFor={`removeDuplicates-${idx}`} className="text-sm text-gray-700">Remove Duplicates</label>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {Object.keys(parameterPresets.preprocessed).map(preset => (
+                <button
+                  key={preset}
+                  onClick={() => applyPreset(key, preset)}
+                  className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      
+      case 'trained':
+        return (
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Model Type</label>
+                <select
+                  value={params.modelType || 'random_forest'}
+                  onChange={e => updateStepParam(idx, 'modelType', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="random_forest">Random Forest</option>
+                  <option value="linear_regression">Linear Regression</option>
+                  <option value="neural_network">Neural Network</option>
+                  <option value="xgboost">XGBoost</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Epochs</label>
+                <input
+                  type="number"
+                  value={params.epochs || 100}
+                  onChange={e => updateStepParam(idx, 'epochs', parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  min="1"
+                  max="1000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Validation Split</label>
+                <input
+                  type="number"
+                  value={params.validationSplit || 0.2}
+                  onChange={e => updateStepParam(idx, 'validationSplit', parseFloat(e.target.value))}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  min="0.1"
+                  max="0.5"
+                  step="0.1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Learning Rate</label>
+                <input
+                  type="number"
+                  value={params.learningRate || 0.001}
+                  onChange={e => updateStepParam(idx, 'learningRate', parseFloat(e.target.value))}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  min="0.0001"
+                  max="0.1"
+                  step="0.0001"
+                />
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={`crossValidation-${idx}`}
+                  checked={params.crossValidation || false}
+                  onChange={e => updateStepParam(idx, 'crossValidation', e.target.checked)}
+                  className="mr-2"
+                />
+                <label htmlFor={`crossValidation-${idx}`} className="text-sm text-gray-700">Cross Validation</label>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={`earlyStopping-${idx}`}
+                  checked={params.earlyStopping || false}
+                  onChange={e => updateStepParam(idx, 'earlyStopping', e.target.checked)}
+                  className="mr-2"
+                />
+                <label htmlFor={`earlyStopping-${idx}`} className="text-sm text-gray-700">Early Stopping</label>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {Object.keys(parameterPresets.trained).map(preset => (
+                <button
+                  key={preset}
+                  onClick={() => applyPreset(key, preset)}
+                  className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      
+      case 'evaluated':
+        return (
+          <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Comparison Baseline</label>
+                <input
+                  type="number"
+                  value={params.comparisonBaseline || 0.8}
+                  onChange={e => updateStepParam(idx, 'comparisonBaseline', parseFloat(e.target.value))}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Threshold</label>
+                <input
+                  type="number"
+                  value={params.threshold || 0.5}
+                  onChange={e => updateStepParam(idx, 'threshold', parseFloat(e.target.value))}
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                />
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={`generateReport-${idx}`}
+                  checked={params.generateReport !== false}
+                  onChange={e => updateStepParam(idx, 'generateReport', e.target.checked)}
+                  className="mr-2"
+                />
+                <label htmlFor={`generateReport-${idx}`} className="text-sm text-gray-700">Generate Report</label>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={`saveModel-${idx}`}
+                  checked={params.saveModel || false}
+                  onChange={e => updateStepParam(idx, 'saveModel', e.target.checked)}
+                  className="mr-2"
+                />
+                <label htmlFor={`saveModel-${idx}`} className="text-sm text-gray-700">Save Model</label>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {Object.keys(parameterPresets.evaluated).map(preset => (
+                <button
+                  key={preset}
+                  onClick={() => applyPreset(key, preset)}
+                  className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      
+      default:
+        return null
+    }
+  }
+
+  const runWorkflow = async () => {
+    setLoadingWorkflow(true)
+    setWorkflowResult(null)
+    setLiveResults({})
+    setCurrentProgress(0)
+    setActiveStepIdx(0)
+    
+    if (useSSE) {
+      // SSE-based real-time updates
+      const eventSource = new EventSource(`/api/ml-workflow?sse=true&data=${encodeURIComponent(JSON.stringify({
+        input: { dataSource },
+        steps
+      }))}`)
+      
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        
+        if (data.type === 'step_complete') {
+          setLiveResults(prev => ({ ...prev, [data.step]: data.result }))
+          setCurrentProgress(data.progress)
+          setActiveStepIdx(data.stepIndex)
+        } else if (data.type === 'workflow_complete') {
+          setWorkflowResult(liveResults)
+          setActiveStepIdx(-1)
+          setLoadingWorkflow(false)
+          eventSource.close()
+        } else if (data.type === 'error') {
+          setWorkflowResult({ error: data.error })
+          setActiveStepIdx(-1)
+          setLoadingWorkflow(false)
+          eventSource.close()
+        }
+      }
+      
+      eventSource.onerror = () => {
+        setWorkflowResult({ error: 'SSE connection failed' })
+        setActiveStepIdx(-1)
+        setLoadingWorkflow(false)
+        eventSource.close()
+      }
+    } else {
+      // Regular non-SSE request
+      try {
+        const res = await fetch('/api/ml-workflow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: { dataSource },
+            steps
+          })
+        })
+        const data = await res.json()
+        setWorkflowResult(data)
+        setActiveStepIdx(-1)
+      } catch (err) {
+        setWorkflowResult({ error: 'Failed to run workflow' })
+        setActiveStepIdx(-1)
+      } finally {
+        setLoadingWorkflow(false)
+      }
     }
   }
 
@@ -294,6 +882,243 @@ export default function MLLifecycle() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'overview' && (
           <div className="space-y-8">
+            {/* Workflow Templates */}
+            <div className="w-full max-w-4xl mx-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg">Workflow Templates</h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowTemplates(!showTemplates)}
+                    className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
+                  >
+                    {showTemplates ? 'Hide' : 'Show'} Templates
+                  </button>
+                  <button
+                    onClick={saveAsTemplate}
+                    className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
+                  >
+                    Save as Template
+                  </button>
+                </div>
+              </div>
+              
+              {showTemplates && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  {Object.entries(workflowTemplates).map(([name, template]) => (
+                    <div key={name} className="bg-white rounded-lg shadow p-4 border">
+                      <h4 className="font-semibold text-gray-900 mb-2">{name}</h4>
+                      <p className="text-sm text-gray-600 mb-3">{template.description}</p>
+                      <button
+                        onClick={() => applyTemplate(name)}
+                        className="w-full px-3 py-2 bg-primary-600 text-white rounded hover:bg-primary-700"
+                      >
+                        Apply Template
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ML Library Integration */}
+            <div className="w-full max-w-4xl mx-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg">ML Library Integration</h3>
+                <button
+                  onClick={() => setShowLibraries(!showLibraries)}
+                  className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200"
+                >
+                  {showLibraries ? 'Hide' : 'Show'} Libraries
+                </button>
+              </div>
+              
+              {showLibraries && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  {Object.entries(mlLibraries).map(([key, library]) => (
+                    <div key={key} className="bg-white rounded-lg shadow p-4 border">
+                      <h4 className="font-semibold text-gray-900 mb-1">{library.name}</h4>
+                      <p className="text-xs text-gray-600 mb-2">{library.description}</p>
+                      <div className="text-xs text-gray-500 mb-2">
+                        Models: {library.models.join(', ')}
+                      </div>
+                      <div className={`inline-block px-2 py-1 rounded text-xs ${
+                        library.status === 'available' 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {library.status}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Step Configuration Panel */}
+            <div className="w-full max-w-4xl mx-auto mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg">Configure Workflow Steps</h3>
+                {!isWorkflowValid() && (
+                  <div className="text-red-600 text-sm">
+                    ⚠️ Please fix validation errors before running
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3">
+                {steps.map((step, idx) => (
+                  <div key={step.key} className="bg-white rounded-lg shadow-sm border">
+                    <div
+                      className={`flex items-center gap-2 p-3 cursor-pointer ${step.enabled ? '' : 'opacity-50'}`}
+                      draggable
+                      onDragStart={onDragStart(idx)}
+                      onDrop={onDrop(idx)}
+                      onDragOver={onDragOver}
+                      onClick={() => setExpandedStep(expandedStep === step.key ? null : step.key)}
+                    >
+                      <span className="cursor-move text-gray-400">☰</span>
+                      <input
+                        type="checkbox"
+                        checked={step.enabled}
+                        onChange={(e) => {
+                          e.stopPropagation()
+                          toggleStep(idx)
+                        }}
+                      />
+                      <span className="font-medium flex-1">{step.label}</span>
+                      {validationErrors[step.key] && Object.values(validationErrors[step.key]).some(e => e !== '') && (
+                        <span className="text-red-500 text-sm">⚠️</span>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setExpandedStep(expandedStep === step.key ? null : step.key)
+                        }}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        {expandedStep === step.key ? '▼' : '▶'}
+                      </button>
+                    </div>
+                    {expandedStep === step.key && step.enabled && (
+                      <div className="border-t">
+                        {renderParameterForm(step, idx)}
+                        {/* Validation Errors */}
+                        {validationErrors[step.key] && (
+                          <div className="p-4 bg-red-50 border-t">
+                            {Object.entries(validationErrors[step.key]).map(([param, error]) => 
+                              error && (
+                                <div key={param} className="text-red-600 text-sm mb-1">
+                                  {error}
+                                </div>
+                              )
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* ML Workflow Trigger */}
+            <div className="flex flex-col items-center mb-8 w-full">
+              <div className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-2xl mb-4">
+                <input
+                  type="text"
+                  placeholder="Enter data source (optional)"
+                  value={dataSource}
+                  onChange={e => setDataSource(e.target.value)}
+                  className="flex-1 px-4 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
+                />
+                <button
+                  onClick={runWorkflow}
+                  className="px-6 py-2 rounded-lg bg-primary-600 text-white font-semibold shadow hover:bg-primary-700 transition-colors disabled:opacity-50"
+                  disabled={loadingWorkflow || !isWorkflowValid()}
+                >
+                  {loadingWorkflow ? 'Running Workflow...' : 'Run ML Agent Workflow'}
+                </button>
+              </div>
+              
+              {/* SSE Toggle */}
+              <div className="flex items-center gap-2 mb-4">
+                <input
+                  type="checkbox"
+                  id="sse-toggle"
+                  checked={useSSE}
+                  onChange={e => setUseSSE(e.target.checked)}
+                  className="rounded"
+                />
+                <label htmlFor="sse-toggle" className="text-sm font-medium">
+                  Enable Real-time Updates (SSE)
+                </label>
+              </div>
+              
+              {/* Progress Bar */}
+              {loadingWorkflow && (
+                <div className="w-full max-w-2xl mb-4">
+                  <div className="bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${currentProgress}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-center text-sm text-gray-600 mt-1">
+                    {currentProgress}% Complete
+                  </div>
+                </div>
+              )}
+              
+              {/* Stepper/Progress Bar */}
+              <div className="flex gap-2 w-full max-w-2xl mb-4">
+                {steps.filter(s => s.enabled).map((step, idx) => (
+                  <div key={step.key} className="flex-1 flex flex-col items-center">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
+                      workflowResult || liveResults[step.key]
+                        ? 'bg-green-500'
+                        : loadingWorkflow && activeStepIdx === idx
+                        ? 'bg-blue-500 animate-pulse'
+                        : 'bg-gray-300'
+                    }`}>
+                      {idx + 1}
+                    </div>
+                    <span className="text-xs mt-1 text-center">{step.label}</span>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Live Results (SSE mode) */}
+              {useSSE && Object.keys(liveResults).length > 0 && (
+                <div className="w-full max-w-2xl space-y-4 mb-4">
+                  <h4 className="font-semibold text-primary-700">Live Results:</h4>
+                  {steps.filter(s => s.enabled).map((step, idx) => (
+                    liveResults[step.key] && (
+                      <div key={step.key} className="bg-green-50 rounded-lg shadow p-4 border border-green-200">
+                        <div className="font-semibold text-green-700 mb-2 capitalize">{step.label} Output ✓</div>
+                        <pre className="text-sm text-gray-800 overflow-x-auto">
+                          {JSON.stringify(liveResults[step.key], null, 2)}
+                        </pre>
+                      </div>
+                    )
+                  ))}
+                </div>
+              )}
+              
+              {/* Final Results */}
+              {workflowResult && !useSSE && (
+                <div className="w-full max-w-2xl space-y-4">
+                  {steps.filter(s => s.enabled).map((step, idx) => (
+                    <div key={step.key} className="bg-white rounded-lg shadow p-4 border">
+                      <div className="font-semibold text-primary-700 mb-2 capitalize">{step.label} Output</div>
+                      <pre className="text-sm text-gray-800 overflow-x-auto">
+                        {JSON.stringify(workflowResult[step.key], null, 2)}
+                      </pre>
+                    </div>
+                  ))}
+                  {workflowResult.error && (
+                    <div className="text-red-600 font-semibold">{workflowResult.error}</div>
+                  )}
+                </div>
+              )}
+            </div>
             {/* Hero Section */}
             <div className="text-center">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">
